@@ -1,9 +1,12 @@
+# ABSTRACT: event based livestatus client
 use common::sense;
 package AnyEvent::Monitoring::Livestatus;
 use namespace::autoclean;
 use Moo;
 use AnyEvent;
 use AnyEvent::Handle;
+
+our $VERSION = '0.000001';
 
 has socket => (
     is => 'ro',
@@ -26,7 +29,6 @@ sub _send {
     # The fixed16 is not needed, because JSON texts are fully self-delimiting,
     # AnyEvent::Handle will handle that already for us
     # TODO: Well, it's needed for the status code, implement that later
-    #       first let's get multiple requests to work
     $query .= "\nOutputFormat: json\n\n";
 
     my $cv = AE::cv;
