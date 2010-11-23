@@ -12,10 +12,12 @@ my @backends = map {
     )
 } @sockets;
 
+#print Dumper($backends[0]->_send("GET servicesfoo"));
+
 my @CV = ();
 for my $backend (@backends) {
-    push @CV, $backend->_send("GET services", sub {
-        print Dumper({socket => $backend->socket, data=> shift});
+    push @CV, $backend->query("GET service\nColumns: service_description", sub {
+        print Dumper({socket => $backend->socket, data=>shift});
     });
 }
 while(my $cv = pop @CV) { $cv->recv }

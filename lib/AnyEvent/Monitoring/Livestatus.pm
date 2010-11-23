@@ -6,7 +6,7 @@ use Moo;
 use AnyEvent;
 use AnyEvent::Handle;
 
-our $VERSION = '0.000001';
+our $VERSION = '0.000002';
 
 has socket => (
     is => 'ro',
@@ -24,21 +24,32 @@ sub get_hdl {
     );
 }
 
-sub _send {
+sub query {
     my ($self, $query, $cb) = @_;
-    # The fixed16 is not needed, because JSON texts are fully self-delimiting,
-    # AnyEvent::Handle will handle that already for us
-    # TODO: Well, it's needed for the status code, implement that later
-    $query .= "\nOutputFormat: json\n\n";
 
+    $query .= "\nOutputFormat: json\nResponseHeader: fixed16\n\n";
+
+    my $return = {};
     my $cv = AE::cv;
-    my $json;
     my $hdl = $self->get_hdl;
 
     $hdl->push_write($query);
 
-    my $reader; $reader = sub {
-        my ($hdl, $data) = @_;
+    my $error_cb = sub {
+        my $content = $_[1];
+        chomp($content);
+        $return->{message} = "$content";
+        if($cb) {
+            $cb->($return);
+            $cv->send;
+        } else {
+            $cv->send($return);
+        }
+    };
+
+    my $reader = sub {
+        my  $data = $_[1];
+        $return->{data} = $data;
 
         # If a callback was given, we call it with the result
         # If no callback was given we emulate a synchronous api
@@ -46,20 +57,31 @@ sub _send {
         #$self->_clear_hdl;
         #$hdl->destroy;
         if($cb) {
-            $cb->($data);
+            $cb->($return);
             $cv->send;
         } else {
-            $cv->send($data);
+            $cv->send($return);
         }
-
     };
-
-    $hdl->push_read(json => $reader);
+ 
+    # read the status line
+    $hdl->push_read(line => sub {
+        my $line = $_[1];
+        my ($num, $length) = (split /\s+/, $line);
+        if($num == 200) {
+            $return->{code} = $num;
+            $return->{message} = "Ok";
+            $hdl->push_read(json => $reader);
+        } else {
+            $return->{code} = $num;
+            $hdl->push_read(chunk => $length, $error_cb);
+        }
+    });
 
     # If a callback was given, we call it with the result
     # If no callback was given we emulate a synchronous api
     # and return the data
-    $cb ? $cv : $cv->recv;
+    return $cb ? $cv : $cv->recv;
 }
 
 1;
