@@ -12,7 +12,7 @@ has socket => (
     is => 'ro',
 );
 
-sub get_hdl {
+sub _get_hdl {
     my $self = shift;
     AnyEvent::Handle->new(
         connect => $self->socket,
@@ -31,7 +31,7 @@ sub query {
 
     my $return = {};
     my $cv = AE::cv;
-    my $hdl = $self->get_hdl;
+    my $hdl = $self->_get_hdl;
 
     $hdl->push_write($query);
 
